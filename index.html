@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>株購入口数計算ツール</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 40px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #718096;
+      margin-bottom: 32px;
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 6px;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap .prefix {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.95rem;
+      color: #718096;
+      pointer-events: none;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 10px 14px 10px 48px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      color: #1a202c;
+      transition: border-color 0.2s;
+      outline: none;
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    input[type="number"]:focus {
+      border-color: #4299e1;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      background: #3182ce;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+    }
+
+    button:hover:not(:disabled) { background: #2b6cb0; }
+    button:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    .rate-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: #718096;
+      margin-top: 12px;
+      margin-bottom: 20px;
+      min-height: 18px;
+    }
+
+    .rate-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #68d391;
+      flex-shrink: 0;
+    }
+
+    .rate-dot.loading {
+      background: #f6ad55;
+      animation: pulse 1s infinite;
+    }
+
+    .rate-dot.error { background: #fc8181; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .result {
+      background: #ebf8ff;
+      border: 1.5px solid #bee3f8;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 24px;
+      display: none;
+    }
+
+    .result.visible { display: block; }
+
+    .result-main {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .result-main .label {
+      font-size: 0.82rem;
+      color: #2b6cb0;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .result-main .value {
+      font-size: 3rem;
+      font-weight: 800;
+      color: #1a365d;
+      line-height: 1.1;
+    }
+
+    .result-main .unit {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #2b6cb0;
+      margin-left: 6px;
+    }
+
+    .result-details {
+      border-top: 1px solid #bee3f8;
+      padding-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.88rem;
+    }
+
+    .detail-row .dl { color: #4a5568; }
+    .detail-row .dv { font-weight: 600; color: #1a202c; }
+
+    .error-msg {
+      color: #e53e3e;
+      font-size: 0.85rem;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .error-msg.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>株購入口数計算ツール</h1>
+    <p class="subtitle">JPY予算で米国株を何口買えるか計算します</p>
+
+    <div class="field">
+      <label for="budget">予算 (円)</label>
+      <div class="input-wrap">
+        <span class="prefix">¥</span>
+        <input type="number" id="budget" min="1" step="1" placeholder="例: 500000" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="price">株価 (USD / 1株)</label>
+      <div class="input-wrap">
+        <span class="prefix">$</span>
+        <input type="number" id="price" min="0.01" step="0.01" placeholder="例: 185.50" />
+      </div>
+    </div>
+
+    <div class="rate-row">
+      <span class="rate-dot loading" id="rateDot"></span>
+      <span id="rateText">為替レートを取得中…</span>
+    </div>
+
+    <button id="calcBtn" disabled>計算する</button>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="result" id="result">
+      <div class="result-main">
+        <div class="label">購入できる株数</div>
+        <div>
+          <span class="value" id="shares">0</span>
+          <span class="unit">口</span>
+        </div>
+      </div>
+      <div class="result-details">
+        <div class="detail-row">
+          <span class="dl">実際の購入金額</span>
+          <span class="dv" id="actualCostJPY">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">購入金額 (USD)</span>
+          <span class="dv" id="actualCostUSD">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">残り予算</span>
+          <span class="dv" id="remaining">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">使用レート</span>
+          <span class="dv" id="usedRate">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">レート取得時刻</span>
+          <span class="dv" id="rateTime">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const RATE_API = "https://api.frankfurter.app/latest?from=USD&to=JPY";
+    const FALLBACK_RATE_API = "https://open.er-api.com/v6/latest/USD";
+
+    let currentRate = null;
+    let rateDate = null;
+
+    const rateDot  = document.getElementById("rateDot");
+    const rateText = document.getElementById("rateText");
+    const calcBtn  = document.getElementById("calcBtn");
+    const errorMsg = document.getElementById("errorMsg");
+    const resultEl = document.getElementById("result");
+
+    function fmt(n, digits = 0) {
+      return n.toLocaleString("ja-JP", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+    }
+
+    async function fetchRate() {
+      rateDot.className = "rate-dot loading";
+      rateText.textContent = "為替レートを取得中…";
+      calcBtn.disabled = true;
+
+      try {
+        const res = await fetch(RATE_API);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        currentRate = data.rates.JPY;
+        rateDate = data.date;
+      } catch {
+        // fallback
+        try {
+          const res2 = await fetch(FALLBACK_RATE_API);
+          if (!res2.ok) throw new Error("HTTP " + res2.status);
+          const data2 = await res2.json();
+          currentRate = data2.rates.JPY;
+          rateDate = data2.time_last_update_utc
+            ? new Date(data2.time_last_update_utc).toISOString().slice(0, 10)
+            : "不明";
+        } catch {
+          rateDot.className = "rate-dot error";
+          rateText.textContent = "レートの取得に失敗しました（手動入力も可）";
+          showManualInput();
+          return;
+        }
+      }
+
+      rateDot.className = "rate-dot";
+      rateText.textContent = `1 USD = ${fmt(currentRate, 2)} JPY（${rateDate}）`;
+      calcBtn.disabled = false;
+    }
+
+    function showManualInput() {
+      const wrap = document.querySelector(".rate-row");
+      wrap.insertAdjacentHTML("afterend", `
+        <div class="field" id="manualRateField">
+          <label for="manualRate">為替レートを手動入力 (JPY / USD)</label>
+          <div class="input-wrap">
+            <span class="prefix">¥</span>
+            <input type="number" id="manualRate" min="0.01" step="0.01" placeholder="例: 150.00" />
+          </div>
+        </div>
+      `);
+      document.getElementById("manualRate").addEventListener("input", () => {
+        const v = parseFloat(document.getElementById("manualRate").value);
+        if (v > 0) {
+          currentRate = v;
+          rateDate = "手動入力";
+          calcBtn.disabled = false;
+        } else {
+          calcBtn.disabled = true;
+        }
+      });
+    }
+
+    function calculate() {
+      errorMsg.classList.remove("visible");
+      resultEl.classList.remove("visible");
+
+      const budget = parseFloat(document.getElementById("budget").value);
+      const price  = parseFloat(document.getElementById("price").value);
+
+      if (!budget || budget <= 0) {
+        showError("予算を正しく入力してください。");
+        return;
+      }
+      if (!price || price <= 0) {
+        showError("株価を正しく入力してください。");
+        return;
+      }
+      if (!currentRate || currentRate <= 0) {
+        showError("為替レートが取得できていません。");
+        return;
+      }
+
+      const priceJPY   = price * currentRate;          // 1株あたりの円コスト
+      const shares     = Math.floor(budget / priceJPY); // 購入可能口数
+      const actualUSD  = shares * price;
+      const actualJPY  = shares * priceJPY;
+      const remainJPY  = budget - actualJPY;
+
+      document.getElementById("shares").textContent       = fmt(shares);
+      document.getElementById("actualCostJPY").textContent = `¥${fmt(actualJPY, 0)}`;
+      document.getElementById("actualCostUSD").textContent = `$${fmt(actualUSD, 2)}`;
+      document.getElementById("remaining").textContent    = `¥${fmt(remainJPY, 0)}`;
+      document.getElementById("usedRate").textContent     = `1 USD = ${fmt(currentRate, 2)} JPY`;
+      document.getElementById("rateTime").textContent     = rateDate || "—";
+
+      resultEl.classList.add("visible");
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add("visible");
+    }
+
+    calcBtn.addEventListener("click", calculate);
+
+    // Enterキーでも計算
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !calcBtn.disabled) calculate();
+    });
+
+    fetchRate();
+  </script>
+</body>
+</html>
